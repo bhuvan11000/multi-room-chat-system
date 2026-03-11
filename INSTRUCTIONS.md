@@ -36,7 +36,19 @@ sudo dnf install boost-devel cmake gcc-c++
 1. **Start Server**: `./chat_server 8080`
 2. **Start Client**: `./chat_client 127.0.0.1 8080`
 
----
+---	
+## Usage
+### Commands (command bar at the bottom)
+
+| Command                        | Description                    |
+|--------------------------------|--------------------------------|
+| `/create <room>`               | Create and join a new room     |
+| `/join <room>`                 | Join an existing room          |
+| `/private <user> <message>`    | Send a private message         |
+| `/sendfile <path>`             | Send a file to current room    |
+| `/quit`                        | Exit                           |
+
+Type a message in the **message input** and press **Enter** to chat.
 
 ## Team Tasks
 
