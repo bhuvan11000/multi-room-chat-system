@@ -32,10 +32,6 @@ private:
 } // namespace chat
 
 int main(int argc, char* argv[]) {
-    SSL_library_init();
-    OpenSSL_add_all_algorithms();
-    SSL_load_error_strings();
-
     try {
         if (argc != 2) {
             std::cerr << "Usage: chat_server <port>\n";
