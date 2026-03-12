@@ -43,10 +43,6 @@ void send_msg(tcp::socket& sock, boost::asio::io_context& ioc,
 }
 
 int main(int argc, char* argv[]) {
-    SSL_library_init();
-    OpenSSL_add_all_algorithms();
-    SSL_load_error_strings();
-    
     if (argc != 3) { std::cerr << "Usage: chat_client <host> <port>\n"; return 1; }
 
     boost::asio::io_context ioc;
