@@ -88,6 +88,7 @@ Install prerequisites and build the client on the second device, then run:
 | `/create <room>`               | Create and join a new room     |
 | `/join <room>`                 | Join an existing room          |
 | `/private <user> <message>`    | Send a private message         |
+| `/sendfile <path>`             | Send a file to current room    |
 | `/quit`                        | Exit the application           |
 
 Type a message in the **message input** and press **Enter** to chat.

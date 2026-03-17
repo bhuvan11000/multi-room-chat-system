@@ -4,6 +4,7 @@
 #include <cstring>
 #include <mutex>
 #include <functional>
+#include <fstream>
 #include <boost/asio.hpp>
 #include <boost/asio/ssl.hpp>
 #include <ftxui/component/component.hpp>
@@ -48,6 +49,29 @@ void send_msg(boost::asio::ssl::stream<tcp::socket>& sock, boost::asio::io_conte
     });
 }
 
+void send_file(boost::asio::ssl::stream<tcp::socket>& sock, boost::asio::io_context& ioc,
+               std::deque<std::vector<uint8_t>>& q, const std::string& path) {
+    std::ifstream file(path, std::ios::binary);
+    if (!file) {
+        push("[Error]: Could not open file " + path);
+        return;
+    }
+
+    std::string filename = path.substr(path.find_last_of("/\\") + 1);
+    send_msg(sock, ioc, q, MessageType::FILE_START, filename);
+
+    char buffer[4096];
+    while (file.read(buffer, sizeof(buffer))) {
+        send_msg(sock, ioc, q, MessageType::FILE_DATA, std::string(buffer, file.gcount()));
+    }
+    if (file.gcount() > 0) {
+        send_msg(sock, ioc, q, MessageType::FILE_DATA, std::string(buffer, file.gcount()));
+    }
+
+    send_msg(sock, ioc, q, MessageType::FILE_END, filename);
+    push("[Info]: File sent: " + filename);
+}
+
 int main(int argc, char* argv[]) {
     SSL_library_init();
     OpenSSL_add_all_algorithms();
@@ -72,6 +96,8 @@ int main(int argc, char* argv[]) {
     MessageHeader rh{};
     std::vector<uint8_t> rb;
     std::function<void()> read_hdr, read_body;
+    std::ofstream receiving_file;
+    std::string receiving_filename;
 
     read_hdr = [&]() {
         boost::asio::async_read(sock, boost::asio::buffer(&rh, HEADER_SIZE),
@@ -85,7 +111,26 @@ int main(int argc, char* argv[]) {
         boost::asio::async_read(sock, boost::asio::buffer(rb.data(), rb.size()),
             [&](boost::system::error_code ec, std::size_t) {
                 if (!ec) {
-                    push(std::string(rb.begin(), rb.end()));
+                    MessageType type = static_cast<MessageType>(rh.type);
+                    std::string body(rb.begin(), rb.end());
+
+                    if (type == MessageType::FILE_START) {
+                        receiving_filename = "received_" + body;
+                        receiving_file.open(receiving_filename, std::ios::binary);
+                        push("[Info]: Receiving file: " + body);
+                    } else if (type == MessageType::FILE_DATA) {
+                        if (receiving_file.is_open()) {
+                            receiving_file.write(reinterpret_cast<const char*>(rb.data()), rb.size());
+                        }
+                    } else if (type == MessageType::FILE_END) {
+                        if (receiving_file.is_open()) {
+                            receiving_file.close();
+                            push("[Info]: File saved as: " + receiving_filename);
+                        }
+                    } else {
+                        // Normal chat or info messages
+                        push(body);
+                    }
                     read_hdr();
                 }
             });
@@ -102,7 +147,7 @@ int main(int argc, char* argv[]) {
     auto screen = ScreenInteractive::Fullscreen();
     std::string input_text, room = "(none)";
 
-    auto input = Input(&input_text, "/create  /join  /private  or message");
+    auto input = Input(&input_text, "/create  /join  /private  /sendfile  or message");
     input |= CatchEvent([&](Event e) {
         if (e != Event::Return || input_text.empty()) return false;
         std::string line = input_text;
@@ -110,6 +155,7 @@ int main(int argc, char* argv[]) {
         if      (line.substr(0,8)=="/create ") { room=line.substr(8); send_msg(sock,ioc,wq,MessageType::CREATE_ROOM,room); }
         else if (line.substr(0,6)=="/join ")   { room=line.substr(6); send_msg(sock,ioc,wq,MessageType::JOIN_ROOM,room); }
         else if (line.substr(0,9)=="/private ")  send_msg(sock,ioc,wq,MessageType::PRIVATE_MSG,line.substr(9));
+        else if (line.substr(0,10)=="/sendfile ") send_file(sock,ioc,wq,line.substr(10));
         else if (line=="/quit")                  screen.Exit();
         else                                     send_msg(sock,ioc,wq,MessageType::CHAT_MSG,line);
         return true;
