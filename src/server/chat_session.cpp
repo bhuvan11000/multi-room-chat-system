@@ -59,7 +59,6 @@ void ChatSession::handle_message() {
         case MessageType::FILE_START:
         case MessageType::FILE_DATA:
         case MessageType::FILE_END: {
-            // File relaying logic: broadcast raw body to the room
             if (current_room_) {
                 current_room_->broadcast(type, body, shared_from_this());
             }

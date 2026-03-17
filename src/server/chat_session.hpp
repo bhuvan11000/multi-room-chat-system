@@ -2,10 +2,13 @@
 #define CHAT_SESSION_HPP
 
 #include <boost/asio.hpp>
+#include <boost/asio/ssl.hpp>
 #include <memory>
 #include <deque>
 #include <vector>
 #include <string>
+#include <iostream>
+#include <cstring>
 #include "../common/protocol.hpp"
 #include "chat_room.hpp"
 
@@ -15,17 +18,23 @@ using boost::asio::ip::tcp;
 
 class ChatSession : public std::enable_shared_from_this<ChatSession> {
 public:
-    ChatSession(tcp::socket socket, RoomManager& room_manager)
-        : socket_(std::move(socket)), room_manager_(room_manager) {}
+    ChatSession(tcp::socket socket, boost::asio::ssl::context& context, RoomManager& room_manager)
+        : ssl_socket_(std::move(socket), context), room_manager_(room_manager) {}
 
     void start() {
-        do_read_header();
+        auto self(shared_from_this());
+        ssl_socket_.async_handshake(boost::asio::ssl::stream_base::server, [this, self](const boost::system::error_code& ec) {
+            if (!ec) {
+                do_read_header();
+            } else {
+                std::cerr << "SSL Handshake Failed : " << ec.message() << std::endl;
+            }
+        });
     }
 
     void deliver(MessageType type, const std::string& body) {
         bool write_in_progress = !write_msgs_.empty();
         
-        // Prepare header
         MessageHeader header;
         header.type = static_cast<uint8_t>(type);
         header.length = static_cast<uint32_t>(body.size());
@@ -47,9 +56,9 @@ public:
 private:
     void do_read_header() {
         auto self(shared_from_this());
-        boost::asio::async_read(socket_,
+        boost::asio::async_read(ssl_socket_,
             boost::asio::buffer(&read_header_, HEADER_SIZE),
-            [this, self](boost::system::error_code ec, std::size_t /*length*/) {
+            [this, self](boost::system::error_code ec, std::size_t) {
                 if (!ec && read_header_.length <= MAX_BODY_SIZE) {
                     do_read_body();
                 } else {
@@ -61,9 +70,9 @@ private:
     void do_read_body() {
         auto self(shared_from_this());
         read_body_.resize(read_header_.length);
-        boost::asio::async_read(socket_,
+        boost::asio::async_read(ssl_socket_,
             boost::asio::buffer(read_body_.data(), read_body_.size()),
-            [this, self](boost::system::error_code ec, std::size_t /*length*/) {
+            [this, self](boost::system::error_code ec, std::size_t) {
                 if (!ec) {
                     handle_message();
                     do_read_header();
@@ -75,9 +84,9 @@ private:
 
     void do_write() {
         auto self(shared_from_this());
-        boost::asio::async_write(socket_,
+        boost::asio::async_write(ssl_socket_,
             boost::asio::buffer(write_msgs_.front().data(), write_msgs_.front().size()),
-            [this, self](boost::system::error_code ec, std::size_t /*length*/) {
+            [this, self](boost::system::error_code ec, std::size_t) {
                 if (!ec) {
                     write_msgs_.pop_front();
                     if (!write_msgs_.empty()) {
@@ -92,7 +101,7 @@ private:
     void handle_message();
     void handle_error(const boost::system::error_code& ec);
 
-    tcp::socket socket_;
+    boost::asio::ssl::stream<tcp::socket> ssl_socket_;
     RoomManager& room_manager_;
     std::string username_;
     std::shared_ptr<ChatRoom> current_room_;
@@ -102,6 +111,6 @@ private:
     std::deque<std::vector<uint8_t>> write_msgs_;
 };
 
-} // namespace chat
+}
 
-#endif // CHAT_SESSION_HPP
+#endif

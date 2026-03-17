@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # ── Boost ─────────────────────────────────────────────────────────────────────
 find_package(Boost REQUIRED COMPONENTS system thread)
+find_package(OpenSSL REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
 include_directories(src/common)
 
@@ -34,6 +35,8 @@ add_executable(chat_server
 target_link_libraries(chat_server
     Boost::system
     Boost::thread
+    OpenSSL::SSL
+    OpenSSL::Crypto
 )
 
 # ── TUI Client ────────────────────────────────────────────────────────────────
@@ -46,6 +49,8 @@ target_link_libraries(chat_client
     ftxui::component
     ftxui::dom
     ftxui::screen
+    OpenSSL::SSL
+    OpenSSL::Crypto
 )
 
 # ── SSL/TLS upgrade: uncomment when ready ────────────────────────────────────
