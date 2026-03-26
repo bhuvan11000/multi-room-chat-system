@@ -22,6 +22,7 @@ void ChatSession::handle_message() {
                 current_room_ = room;
                 current_room_->join(shared_from_this());
                 deliver(MessageType::INFO_MSG, "Room '" + body + "' created and joined.");
+                deliver(MessageType::JOIN_ROOM, body);
             } else {
                 deliver(MessageType::ERROR_MSG, "Room '" + body + "' already exists.");
             }
@@ -33,6 +34,7 @@ void ChatSession::handle_message() {
                 if (current_room_) current_room_->leave(shared_from_this());
                 current_room_ = room;
                 current_room_->join(shared_from_this());
+                deliver(MessageType::JOIN_ROOM, body);
             } else {
                 deliver(MessageType::ERROR_MSG, "Room '" + body + "' does not exist.");
             }
@@ -62,6 +64,14 @@ void ChatSession::handle_message() {
             if (current_room_) {
                 current_room_->broadcast(type, body, shared_from_this());
             }
+            break;
+        }
+        case MessageType::LIST_ROOMS: {
+            deliver(MessageType::LIST_ROOMS, room_manager_.get_all_rooms());
+            break;
+        }
+        case MessageType::LIST_USERS: {
+            deliver(MessageType::LIST_USERS, room_manager_.get_all_users());
             break;
         }
         default:

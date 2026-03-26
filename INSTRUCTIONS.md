@@ -4,11 +4,14 @@ This is a high-performance, asynchronous chat system built using **C++17**, **Bo
 
 ## Current Status (What's Done)
 - **SSL/TLS Encryption**: All communication is secured using `boost::asio::ssl`.
-- **Advanced TUI Client**: A responsive, interactive terminal interface built with **FTXUI**.
+- **Enhanced TUI Client**: A modern, split-pane terminal interface built with **FTXUI**, featuring:
+    - **Live Sidebar**: Real-time display of all active rooms and online users.
+    - **Status Header**: Persistent display of your username and currently joined room.
+    - **Color Coding**: Semantic colors for errors, server info, and private messages.
+- **Event-Driven "Push" Engine**: Highly scalable architecture where the server pushes room/user list updates to clients only when changes occur, eliminating wasteful polling.
+- **Advanced Private Messaging**: Full bidirectional visibility—senders now see their sent private messages in their own log (`[Private to recipient]`).
 - **Asynchronous Engine**: Handles multiple concurrent clients using a non-blocking event loop.
 - **Custom Protocol**: Fixed-size header (5 bytes) + variable body for efficient data parsing.
-- **Room Management**: Support for creating and joining specific rooms with error handling.
-- **Private Messaging**: Direct user-to-user communication via a global registry.
 - **File Transfer Relay**: A "Streaming" relay that handles large files in 4KB chunks.
 - **Robustness**: Graceful handling of client joins, leaves, and unexpected crashes.
 

@@ -41,6 +41,12 @@ public:
     void send_private(const std::string& sender, const std::string& recipient, const std::string& body);
 
     std::shared_ptr<ChatSession> find_user(const std::string& username);
+    
+    std::string get_all_rooms() const;
+    std::string get_all_users() const;
+
+    void notify_room_list_change();
+    void notify_user_list_change();
 
 private:
     std::map<std::string, std::shared_ptr<ChatRoom>> rooms_;

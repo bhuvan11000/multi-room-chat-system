@@ -21,7 +21,9 @@ enum class MessageType : uint8_t {
     FILE_DATA = 8,
     FILE_END = 9,
     ERROR_MSG = 10,
-    INFO_MSG = 11
+    INFO_MSG = 11,
+    LIST_ROOMS = 12,
+    LIST_USERS = 13
 };
 
 // Fixed Header: 1 byte for type, 4 bytes for body length
