@@ -57,3 +57,20 @@ target_link_libraries(chat_client
 # find_package(OpenSSL REQUIRED)
 # target_link_libraries(chat_server PRIVATE OpenSSL::SSL OpenSSL::Crypto)
 # target_link_libraries(chat_client PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+
+
+# This version connects to an already-running chat_server externally.
+# Run: ./chat_server <port>  first, then: ./perf_test <host> <port>
+#
+# Only needs protocol.hpp from src/common — no server sources compiled in.
+add_executable(perf_test
+    src/perf/perf_test.cpp
+)
+target_link_libraries(perf_test
+    Boost::system
+    Boost::thread
+    OpenSSL::SSL
+    OpenSSL::Crypto
+    Threads::Threads
+)
+ 
