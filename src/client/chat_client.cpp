@@ -24,6 +24,7 @@ std::mutex state_mtx;
 std::vector<std::string> available_rooms;
 std::vector<std::string> online_users;
 std::string joined_rooms_display = "(none)";
+std::string current_room_display = "(none)";
 std::atomic<bool> fatal_error_detected{false};
 std::string global_error_string = "";
 std::mutex error_mtx;
@@ -165,8 +166,12 @@ int main(int argc, char* argv[]) {
 					joined_rooms_display += ", " + body;
 				}
 			}
-			push("[Info]: Joined room " + body);
                     } 
+                    else if (type == MessageType::SWITCH_ROOM) {
+                        std::lock_guard<std::mutex> lk(state_mtx);
+                        current_room_display = body;
+                        screen.PostEvent(Event::Custom);
+                    }
                     else if (type == MessageType::LEAVE_ROOM){
 			std::vector<std::string> rooms;
                     	std::stringstream ss(joined_rooms_display);
@@ -189,7 +194,6 @@ int main(int argc, char* argv[]) {
                     				joined_rooms_display += ", ";
                     			}                    			
                     		}
-                    		push("[Info]: Left room " + body);
                     	}
                     }
                     else if(type == MessageType::ERROR_MSG){
@@ -225,7 +229,7 @@ int main(int argc, char* argv[]) {
 
     std::string input_text;
 
-    auto input = Input(&input_text, "Type /create <room>, /join <room>, /private <user> <msg>, /sendfile <path>, /leave <room>, /quit or message...");
+    auto input = Input(&input_text, "Send message or use /cmd (see sidebar)...");
     input |= CatchEvent([&](Event e) {
         if (e != Event::Return || input_text.empty()) return false;
         std::string line = input_text;
@@ -234,6 +238,7 @@ int main(int argc, char* argv[]) {
         else if (line.substr(0,6)=="/join ")   { send_msg(sock,ioc,wq,MessageType::JOIN_ROOM,line.substr(6)); }
         else if (line.substr(0,9)=="/private ")  send_msg(sock,ioc,wq,MessageType::PRIVATE_MSG,line.substr(9));
         else if (line.substr(0,10)=="/sendfile ") send_file(sock,ioc,wq,line.substr(10));
+        else if (line.substr(0, 8) == "/switch ") { send_msg(sock, ioc, wq, MessageType::SWITCH_ROOM, line.substr(8)); }
         else if (line.substr(0, 7) == "/leave ") {
 	    std::string room_name = line.substr(7);
 
@@ -286,16 +291,28 @@ int main(int argc, char* argv[]) {
             make_list("ROOMS", rooms_snap, Color::Cyan),
             separator(),
             make_list("USERS", users_snap, Color::Green),
-        }) | size(WIDTH, GREATER_THAN, 20) | border;
+            separator(),
+            vbox({
+                text(" COMMANDS ") | bold | underlined | color(Color::Magenta),
+                text(" /create <room>"),
+                text(" /join <room>"),
+                text(" /switch <room>"),
+                text(" /leave <room>"),
+                text(" /private <user> <msg>"),
+                text(" /sendfile <path>"),
+                text(" /quit"),
+            }) | flex
+        }) | size(WIDTH, GREATER_THAN, 22) | border;
 
         auto main_chat = vbox({
             hbox({ 
                 text(" USER: ") | bold, text(username) | color(Color::Green),
                 text("  ROOMS JOINED: ") | bold, text("#" + joined_rooms_display) | color(Color::Cyan),
+                text("  CURRENT ROOM: ") | bold, text("#" + current_room_display) | color(Color::Yellow),
                 filler()
             }) | border,
             vbox(std::move(lines)) | yframe | flex | border,
-            hbox({ text(" > ") | bold, input->Render() }) | border,
+            hbox({ text(" MESSAGE ") | bold | color(Color::White), input->Render() }) | border,
         }) | flex;
 
         return hbox({

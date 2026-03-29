@@ -15,7 +15,7 @@ void ChatRoom::leave(std::shared_ptr<ChatSession> session) {
 
 void ChatRoom::broadcast(MessageType type, const std::string& body, std::shared_ptr<ChatSession> exclude) {
     for (auto& participant : participants_) {
-        if (participant != exclude) {
+        if (participant != exclude && participant->current_room().get() == this) {
             participant->deliver(type, body);
         }
     }

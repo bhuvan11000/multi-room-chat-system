@@ -25,37 +25,37 @@ void ChatSession::handle_message() {
         case MessageType::CREATE_ROOM: {
             auto room = room_manager_.create_room(body);
             if (room) {
-                // REMOVED: current_room_->leave() logic to stay in previous rooms
-                joined_rooms_.insert(room); // Add to the set of rooms
+                joined_rooms_.insert(room); 
                 room->join(shared_from_this());
-                deliver(MessageType::INFO_MSG, "Room '" + body + "' created and joined.");
+                current_room_ = room;
+                deliver(MessageType::INFO_MSG, "[Info]: Room '" + body + "' created and joined.");
                 deliver(MessageType::JOIN_ROOM, body);
+                deliver(MessageType::SWITCH_ROOM, body);
             } else {
-                deliver(MessageType::ERROR_MSG, "Room '" + body + "' already exists.");
+                deliver(MessageType::ERROR_MSG, "[Server]: Room '" + body + "' already exists.");
             }
             break;
         }
         case MessageType::JOIN_ROOM: {
             auto room = room_manager_.find_room(body);
             if (room) {
-                // REMOVED: current_room_->leave() logic
-                joined_rooms_.insert(room); // Keep track of this new room
+                joined_rooms_.insert(room); 
                 room->join(shared_from_this());
+                current_room_ = room;
+                deliver(MessageType::INFO_MSG, "[Info]: Joined room: " + body);
                 deliver(MessageType::JOIN_ROOM, body);
+                deliver(MessageType::SWITCH_ROOM, body);
             } else {
-                deliver(MessageType::ERROR_MSG, "Room '" + body + "' does not exist.");
+                deliver(MessageType::ERROR_MSG, "[Server]: Room '" + body + "' does not exist.");
             }
             break;
         }
         case MessageType::CHAT_MSG: {
-            if (!joined_rooms_.empty()) {
+            if (current_room_) {
                 std::string full_body = "[" + username_ + "]: " + body;
-                // Broadcast the message to ALL rooms the user is currently in
-                for (auto& room : joined_rooms_) {
-                    room->broadcast(MessageType::CHAT_MSG, full_body);
-                }
+                current_room_->broadcast(MessageType::CHAT_MSG, full_body);
             } else {
-                deliver(MessageType::ERROR_MSG, "Please join a room first.");
+                deliver(MessageType::ERROR_MSG, "[Server]: Please join a room first.");
             }
             break;
         }
@@ -71,13 +71,11 @@ void ChatSession::handle_message() {
         case MessageType::FILE_START:
         case MessageType::FILE_DATA:
         case MessageType::FILE_END: {
-            if (!joined_rooms_.empty()) {
-                for (auto const& room : joined_rooms_) {
-                   room -> broadcast(type, body, shared_from_this());
-                }
+            if (current_room_) {
+                current_room_ -> broadcast(type, body, shared_from_this());
             } else {
                 if (type == MessageType::FILE_START) {
-                    deliver(MessageType::ERROR_MSG, "Please join a room first.");
+                    deliver(MessageType::ERROR_MSG, "[Server]: Please join a room first.");
                 }
             }
             break;
@@ -88,6 +86,34 @@ void ChatSession::handle_message() {
         }
         case MessageType::LIST_USERS: {
             deliver(MessageType::LIST_USERS, room_manager_.get_all_users());
+            break;
+        }
+        case MessageType::SWITCH_ROOM: {
+            auto room = room_manager_.find_room(body);
+            if (!room) {
+                deliver(MessageType::ERROR_MSG, "[Server]: Room '" + body + "' does not exist.");
+            } else if (room == current_room_) {
+                deliver(MessageType::INFO_MSG, "[Info]: You are already in room: " + body);
+            } else if (joined_rooms_.count(room)) {
+                current_room_ = room;
+                deliver(MessageType::INFO_MSG, "[Info]: Switched to room: " + body);
+                deliver(MessageType::SWITCH_ROOM, body);
+            } else {
+                // Exit current room and join the new one
+                if (current_room_) {
+                    std::string old_room_name = current_room_->name();
+                    joined_rooms_.erase(current_room_);
+                    current_room_->leave(shared_from_this());
+                    deliver(MessageType::LEAVE_ROOM, old_room_name);
+                }
+                
+                joined_rooms_.insert(room);
+                room->join(shared_from_this());
+                current_room_ = room;
+                deliver(MessageType::INFO_MSG, "[Info]: Joined and switched to room: " + body);
+                deliver(MessageType::JOIN_ROOM, body);
+                deliver(MessageType::SWITCH_ROOM, body);
+            }
             break;
         }
 	// Add a helper for trimming or do it inline
@@ -105,6 +131,11 @@ void ChatSession::handle_message() {
 		joined_rooms_.erase(room);
 		room->leave(shared_from_this());
 		
+                if (current_room_ == room) {
+                    current_room_ = nullptr;
+                    deliver(MessageType::SWITCH_ROOM, "(none)");
+                }
+
 		deliver(MessageType::INFO_MSG, "You Left room: " + body);
 		deliver(MessageType::LEAVE_ROOM, body);
 	    } else {

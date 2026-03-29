@@ -20,7 +20,7 @@ using boost::asio::ip::tcp;
 class ChatSession : public std::enable_shared_from_this<ChatSession> {
 public:
     ChatSession(tcp::socket socket, boost::asio::ssl::context& context, RoomManager& room_manager)
-        : ssl_socket_(std::move(socket), context), room_manager_(room_manager) {}
+        : ssl_socket_(std::move(socket), context), room_manager_(room_manager), current_room_(nullptr) {}
 
     void start() {
         auto self(shared_from_this());
@@ -53,6 +53,7 @@ public:
     }
 
     const std::string& username() const { return username_; }
+    std::shared_ptr<ChatRoom> current_room() const { return current_room_; }
 
 private:
     void do_read_header() {
@@ -106,6 +107,7 @@ private:
     RoomManager& room_manager_;
     std::string username_;
     std::set<std::shared_ptr<ChatRoom>> joined_rooms_;
+    std::shared_ptr<ChatRoom> current_room_;
 
     MessageHeader read_header_;
     std::vector<uint8_t> read_body_;
