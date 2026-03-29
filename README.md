@@ -41,18 +41,21 @@ The client runs two threads: a main thread for FTXUI rendering, and a worker thr
 ## Project Structure
 
 ```
-src/
-├── common/
-│   ├── protocol.hpp          # Message types, header struct, constants
-│   └── ssl_manager.hpp       # SSL context factory (wraps OpenSSL + Boost.Asio SSL)
-├── server/
-│   ├── main.cpp              # ChatServer: acceptor loop, SSL context init
-│   ├── chat_session.hpp/cpp  # Per-client state machine
-│   └── chat_room.hpp/cpp     # ChatRoom + RoomManager
-├── client/
-│   └── chat_client.cpp       # TUI client (FTXUI + async network)
-└── perf/
-    └── perf_test.cpp         # Performance evaluation tool
+.
+├── CMakeLists.txt            # Build configuration
+├── README.md                 # Project documentation
+└── src/
+    ├── common/
+    │   ├── protocol.hpp          # Message types, header struct, constants
+    │   └── ssl_manager.hpp       # SSL context factory (wraps OpenSSL + Boost.Asio SSL)
+    ├── server/
+    │   ├── main.cpp              # ChatServer: acceptor loop, SSL context init
+    │   ├── chat_session.hpp/cpp  # Per-client state machine
+    │   └── chat_room.hpp/cpp     # ChatRoom + RoomManager
+    ├── client/
+    │   └── chat_client.cpp       # TUI client (FTXUI + async network)
+    └── perf/
+        └── perf_test.cpp         # Performance evaluation tool
 ```
 
 ---
