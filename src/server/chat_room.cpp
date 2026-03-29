@@ -5,12 +5,12 @@ namespace chat {
 
 void ChatRoom::join(std::shared_ptr<ChatSession> session) {
     participants_.insert(session);
-    broadcast(MessageType::INFO_MSG, "[Server]: " + session->username() + " has joined the room.");
+    broadcast(MessageType::INFO_MSG, "[Server]: " + session->username() + " has joined the room " + name_);
 }
 
 void ChatRoom::leave(std::shared_ptr<ChatSession> session) {
     participants_.erase(session);
-    broadcast(MessageType::INFO_MSG, "[Server]: " + session->username() + " has left the room.");
+    broadcast(MessageType::INFO_MSG, "[Server]: " + session->username() + " has left the room " + name_);
 }
 
 void ChatRoom::broadcast(MessageType type, const std::string& body, std::shared_ptr<ChatSession> exclude) {
@@ -21,9 +21,13 @@ void ChatRoom::broadcast(MessageType type, const std::string& body, std::shared_
     }
 }
 
-void RoomManager::register_user(const std::string& username, std::shared_ptr<ChatSession> session) {
+bool RoomManager::register_user(const std::string& username, std::shared_ptr<ChatSession> session) {
+    if(users_.find(username) != users_.end()){
+    	return false;
+    }
     users_[username] = session;
     notify_user_list_change();
+    return true;
 }
 
 void RoomManager::unregister_user(const std::string& username) {

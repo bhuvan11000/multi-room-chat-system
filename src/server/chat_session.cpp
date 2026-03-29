@@ -9,18 +9,25 @@ void ChatSession::handle_message() {
 
     switch (type) {
         case MessageType::LOGIN: {
-            username_ = body;
-            room_manager_.register_user(username_, shared_from_this());
-            deliver(MessageType::INFO_MSG, "Welcome " + username_ + "!");
-            std::cout << "User logged in: " << username_ << std::endl;
+     	    if(room_manager_.register_user(body, shared_from_this())){
+		    username_ = body;
+		    room_manager_.register_user(username_, shared_from_this());
+		    deliver(MessageType::LIST_ROOMS, room_manager_.get_all_rooms());
+		    deliver(MessageType::INFO_MSG, "Welcome " + username_ + "!");
+		    std::cout << "\033[1;32m" << "User logged in: " << username_ << "\033[0m"<<std::endl;
+            }else{
+            	    deliver(MessageType::ERROR_MSG, "Username " + body + " is already taken. Please choose another one.");
+            	    boost::system::error_code ec;
+            	    ssl_socket_.lowest_layer().shutdown(tcp::socket::shutdown_both, ec);
+            }
             break;
         }
         case MessageType::CREATE_ROOM: {
             auto room = room_manager_.create_room(body);
             if (room) {
-                if (current_room_) current_room_->leave(shared_from_this());
-                current_room_ = room;
-                current_room_->join(shared_from_this());
+                // REMOVED: current_room_->leave() logic to stay in previous rooms
+                joined_rooms_.insert(room); // Add to the set of rooms
+                room->join(shared_from_this());
                 deliver(MessageType::INFO_MSG, "Room '" + body + "' created and joined.");
                 deliver(MessageType::JOIN_ROOM, body);
             } else {
@@ -31,9 +38,9 @@ void ChatSession::handle_message() {
         case MessageType::JOIN_ROOM: {
             auto room = room_manager_.find_room(body);
             if (room) {
-                if (current_room_) current_room_->leave(shared_from_this());
-                current_room_ = room;
-                current_room_->join(shared_from_this());
+                // REMOVED: current_room_->leave() logic
+                joined_rooms_.insert(room); // Keep track of this new room
+                room->join(shared_from_this());
                 deliver(MessageType::JOIN_ROOM, body);
             } else {
                 deliver(MessageType::ERROR_MSG, "Room '" + body + "' does not exist.");
@@ -41,11 +48,14 @@ void ChatSession::handle_message() {
             break;
         }
         case MessageType::CHAT_MSG: {
-            if (current_room_) {
+            if (!joined_rooms_.empty()) {
                 std::string full_body = "[" + username_ + "]: " + body;
-                current_room_->broadcast(MessageType::CHAT_MSG, full_body);
+                // Broadcast the message to ALL rooms the user is currently in
+                for (auto& room : joined_rooms_) {
+                    room->broadcast(MessageType::CHAT_MSG, full_body);
+                }
             } else {
-                deliver(MessageType::ERROR_MSG, "You are not in a room.");
+                deliver(MessageType::ERROR_MSG, "Please join a room first.");
             }
             break;
         }
@@ -61,8 +71,14 @@ void ChatSession::handle_message() {
         case MessageType::FILE_START:
         case MessageType::FILE_DATA:
         case MessageType::FILE_END: {
-            if (current_room_) {
-                current_room_->broadcast(type, body, shared_from_this());
+            if (!joined_rooms_.empty()) {
+                for (auto const& room : joined_rooms_) {
+                   room -> broadcast(type, body, shared_from_this());
+                }
+            } else {
+                if (type == MessageType::FILE_START) {
+                    deliver(MessageType::ERROR_MSG, "Please join a room first.");
+                }
             }
             break;
         }
@@ -74,6 +90,29 @@ void ChatSession::handle_message() {
             deliver(MessageType::LIST_USERS, room_manager_.get_all_users());
             break;
         }
+	// Add a helper for trimming or do it inline
+	case MessageType::LEAVE_ROOM: {
+	    // 1. Trim leading/trailing whitespace from the room name
+	    body.erase(0, body.find_first_not_of(" "));
+	    body.erase(body.find_last_not_of(" ") + 1);
+
+	    auto room = room_manager_.find_room(body);
+	    
+	    // 2. Add debug logging to see exactly what 'body' is
+	    std::cout << "User '" << username_ << "' attempting to leave room: [" << body << "]" << std::endl;
+
+	    if (room && joined_rooms_.count(room)) {
+		joined_rooms_.erase(room);
+		room->leave(shared_from_this());
+		
+		deliver(MessageType::INFO_MSG, "You Left room: " + body);
+		deliver(MessageType::LEAVE_ROOM, body);
+	    } else {
+		deliver(MessageType::ERROR_MSG, "You are not a member of room: " + body);
+	    }
+	    break;
+	}
+
         default:
             break;
     }
@@ -82,9 +121,11 @@ void ChatSession::handle_message() {
 void ChatSession::handle_error(const boost::system::error_code& ec) {
     if (!username_.empty()) {
         std::cout << "User disconnected: " << username_ << " (" << ec.message() << ")" << std::endl;
-        if (current_room_) {
-            current_room_->leave(shared_from_this());
+        // Leave all joined rooms
+        for (auto& room : joined_rooms_) {
+            room->leave(shared_from_this());
         }
+        joined_rooms_.clear();
         room_manager_.unregister_user(username_);
     }
 }

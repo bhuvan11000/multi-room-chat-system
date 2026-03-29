@@ -33,7 +33,7 @@ private:
 // Manages all rooms and the global user registry
 class RoomManager {
 public:
-    void register_user(const std::string& username, std::shared_ptr<ChatSession> session);
+    bool register_user(const std::string& username, std::shared_ptr<ChatSession> session);
     void unregister_user(const std::string& username);
     
     std::shared_ptr<ChatRoom> create_room(const std::string& room_name);

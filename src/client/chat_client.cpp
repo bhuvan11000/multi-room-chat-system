@@ -23,7 +23,10 @@ std::vector<std::string> log_msgs;
 std::mutex state_mtx;
 std::vector<std::string> available_rooms;
 std::vector<std::string> online_users;
-std::string current_room = "(none)";
+std::string joined_rooms_display = "(none)";
+std::atomic<bool> fatal_error_detected{false};
+std::string global_error_string = "";
+std::mutex error_mtx;
 
 void push(const std::string& s) {
     std::lock_guard<std::mutex> lk(log_mtx);
@@ -105,10 +108,17 @@ int main(int argc, char* argv[]) {
     std::string receiving_filename;
     auto screen = ScreenInteractive::Fullscreen();
 
+    // Update in chat_client.cpp (around line 113)
     read_hdr = [&]() {
         boost::asio::async_read(sock, boost::asio::buffer(&rh, HEADER_SIZE),
             [&](boost::system::error_code ec, std::size_t) {
-                if (!ec) read_body(); else push("[disconnected]");
+                if (!ec) {
+                    read_body();
+                } else {
+                    // Feature 2: Exit the TUI immediately when the connection is lost
+                    push("[Error]: Server disconnected. Closing...");
+                    screen.Exit(); 
+                }
             });
     };
 
@@ -148,10 +158,55 @@ int main(int argc, char* argv[]) {
                         while(std::getline(ss, item, ',')) online_users.push_back(item);
                         screen.PostEvent(Event::Custom);
                     } else if (type == MessageType::JOIN_ROOM) {
-                        std::lock_guard<std::mutex> lk(state_mtx);
-                        current_room = body;
-                        screen.PostEvent(Event::Custom);
-                    } else {
+			if(joined_rooms_display == "(none)"){
+				joined_rooms_display = body;
+			}else{
+				if(joined_rooms_display.find(body) == std::string::npos){
+					joined_rooms_display += ", " + body;
+				}
+			}
+			push("[Info]: Joined room " + body);
+                    } 
+                    else if (type == MessageType::LEAVE_ROOM){
+			std::vector<std::string> rooms;
+                    	std::stringstream ss(joined_rooms_display);
+                    	std::string item;
+                    	while(std::getline(ss,item,',')){
+                    		if(!item.empty() && item[0] == ' '){
+                    			item.erase(0,1);
+                    		}
+                    		if(item != body && !item.empty()){
+                    			rooms.push_back(item);
+                    		}
+                    	}
+                    	if(rooms.empty()){
+                    		joined_rooms_display = "(none)";
+                    	}else{
+                    		joined_rooms_display = "";
+                    		for(size_t i = 0; i < rooms.size(); ++i){
+                    			joined_rooms_display += rooms[i];
+                    			if(i < rooms.size() - 1){
+                    				joined_rooms_display += ", ";
+                    			}                    			
+                    		}
+                    		push("[Info]: Left room " + body);
+                    	}
+                    }
+                    else if(type == MessageType::ERROR_MSG){
+                    	std::string error_msg(body.begin(), body.end());
+                    	if(error_msg.find("already taken") != std::string::npos){
+                    		screen.ExitLoopClosure()();
+                    		fatal_error_detected = true;
+                    		global_error_string = error_msg;
+                    		
+                    		ioc.stop();
+                    		return;
+                    	}
+                        else {
+                    		push("[Error]: " + error_msg);
+                    		screen.PostEvent(Event::Custom);
+                        }
+                    }else{
                         push(body);
                         screen.PostEvent(Event::Custom);
                     }
@@ -170,7 +225,7 @@ int main(int argc, char* argv[]) {
 
     std::string input_text;
 
-    auto input = Input(&input_text, "Type /create <room>, /join <room>, /private <user> <msg>, /sendfile <path> or message...");
+    auto input = Input(&input_text, "Type /create <room>, /join <room>, /private <user> <msg>, /sendfile <path>, /leave <room>, /quit or message...");
     input |= CatchEvent([&](Event e) {
         if (e != Event::Return || input_text.empty()) return false;
         std::string line = input_text;
@@ -179,6 +234,19 @@ int main(int argc, char* argv[]) {
         else if (line.substr(0,6)=="/join ")   { send_msg(sock,ioc,wq,MessageType::JOIN_ROOM,line.substr(6)); }
         else if (line.substr(0,9)=="/private ")  send_msg(sock,ioc,wq,MessageType::PRIVATE_MSG,line.substr(9));
         else if (line.substr(0,10)=="/sendfile ") send_file(sock,ioc,wq,line.substr(10));
+        else if (line.substr(0, 7) == "/leave ") {
+	    std::string room_name = line.substr(7);
+
+	    // Remove leading and trailing whitespace
+	    room_name.erase(0, room_name.find_first_not_of(" \t\n\r"));
+	    if (room_name.find_last_not_of(" \t\n\r") != std::string::npos) {
+		room_name.erase(room_name.find_last_not_of(" \t\n\r") + 1);
+	    }
+
+	    if (!room_name.empty()) {
+		send_msg(sock, ioc, wq, MessageType::LEAVE_ROOM, room_name);
+	    }
+	}
         else if (line=="/quit")                  screen.Exit();
         else                                     send_msg(sock,ioc,wq,MessageType::CHAT_MSG,line);
         return true;
@@ -195,7 +263,7 @@ int main(int argc, char* argv[]) {
             std::lock_guard<std::mutex> lk(state_mtx);
             rooms_snap = available_rooms;
             users_snap = online_users;
-            room_name = current_room;
+            room_name = joined_rooms_display;
         }
 
         auto make_list = [](const std::string& title, const std::vector<std::string>& items, Color c) {
@@ -210,7 +278,7 @@ int main(int argc, char* argv[]) {
             if (m.find("[Error]") != std::string::npos) lines.push_back(text(m) | color(Color::Red));
             else if (m.find("[Info]") != std::string::npos) lines.push_back(text(m) | color(Color::Yellow));
             else if (m.find("[Server]") != std::string::npos) lines.push_back(text(m) | color(Color::BlueLight));
-            else if (m.find("[Private") != std::string::npos) lines.push_back(text(m) | color(Color::Magenta));
+            else if (m.find("[Private]") != std::string::npos) lines.push_back(text(m) | color(Color::Magenta));
             else lines.push_back(text(m));
         }
 
@@ -223,7 +291,7 @@ int main(int argc, char* argv[]) {
         auto main_chat = vbox({
             hbox({ 
                 text(" USER: ") | bold, text(username) | color(Color::Green),
-                text("  ROOM: ") | bold, text("#" + room_name) | color(Color::Cyan),
+                text("  ROOMS JOINED: ") | bold, text("#" + joined_rooms_display) | color(Color::Cyan),
                 filler()
             }) | border,
             vbox(std::move(lines)) | yframe | flex | border,
@@ -237,6 +305,13 @@ int main(int argc, char* argv[]) {
     });
 
     screen.Loop(renderer);
+    
+    if(fatal_error_detected){
+    	std::cerr<<"\n------------------------------------------------------------------------------------------------"<<std::endl;
+    	std::cerr<<"[REGISTRATION ERROR]: "<<global_error_string<<std::endl;
+    	std::cerr<<"------------------------------------------------------------------------------------------------\n"<<std::endl;
+    	return 1;
+    }
 
     sock.lowest_layer().close();
     ioc.stop();

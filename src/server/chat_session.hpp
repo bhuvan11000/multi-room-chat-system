@@ -1,4 +1,5 @@
 #ifndef CHAT_SESSION_HPP
+#ifndef CHAT_SESSION_HPP
 #define CHAT_SESSION_HPP
 
 #include <boost/asio.hpp>
@@ -104,7 +105,7 @@ private:
     boost::asio::ssl::stream<tcp::socket> ssl_socket_;
     RoomManager& room_manager_;
     std::string username_;
-    std::shared_ptr<ChatRoom> current_room_;
+    std::set<std::shared_ptr<ChatRoom>> joined_rooms_;
 
     MessageHeader read_header_;
     std::vector<uint8_t> read_body_;
@@ -113,4 +114,5 @@ private:
 
 }
 
+#endif
 #endif
