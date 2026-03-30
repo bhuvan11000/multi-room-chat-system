@@ -256,6 +256,30 @@ Sends one message, waits for the echo, records the time. Repeated 100 times. Rep
 [Test 2] avg=0.070ms  min=0.046ms  max=0.374ms
 ```
 
+**Test 3 — Concurrent clients**
+
+Runs 5 clients on different threads. Each thread independently connects with TLS handshakes, logs in, creates its own room, and runs its own send/recv burst simultaneously.
+Reports per-client thorughput and aggregate throughput.
+
+```
+[Test 3] Concurrent clients: 5 clients × 200 msgs each...
+  client 0: 11390 msg/s (0.018s)
+  client 1: 11377 msg/s (0.018s)
+  client 2: 11671 msg/s (0.017s)
+  client 3: 11502 msg/s (0.017s)
+  client 4: 3461 msg/s (0.058s)
+[Test 3] aggregate throughput: 49401 msg/s  |  wall time: 0.272s
+         (scalability ratio vs Test 1: 2.78×)
+```
+**Test 4 — Large payload throughput**
+
+Sends 200 message worth 4KB   
+
+```
+[Test 4] Large payload: 200 × 4096-byte messages...
+[Test 4] 200 msgs in 0.011s  →  17413 msg/s  |  71.32 MB/s
+```
+
 ### Setup drain
 
 Before measuring, the test logs in and creates a room. The server sends a variable number of broadcast messages in response (LIST_USERS, LIST_ROOMS, etc.). Rather than hardcoding a count (which would hang if the number differs), `timed_drain()` reads and discards messages until the socket is quiet for 80ms, then starts the clock.
