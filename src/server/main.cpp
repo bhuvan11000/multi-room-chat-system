@@ -1,3 +1,4 @@
+// main.cpp: Entry point for the chat server.
 #include <iostream>
 #include <boost/asio.hpp>
 #include <boost/asio/ssl.hpp>
@@ -8,6 +9,7 @@ using boost::asio::ip::tcp;
 
 namespace chat {
 
+// ChatServer: Handles incoming TCP connections and starts SSL sessions.
 class ChatServer {
 public:
     ChatServer(boost::asio::io_context& io_context, boost::asio::ssl::context& context, short port)
@@ -17,6 +19,7 @@ public:
     }
 
 private:
+// do_accept: Asynchronously wait for and accept new client connections.
     void do_accept() {
         acceptor_.async_accept(
             [this](boost::system::error_code ec, tcp::socket socket) {
@@ -34,6 +37,7 @@ private:
 
 } 
 
+// main: Sets up the io_context, SSL context, and starts the server.
 int main(int argc, char* argv[]) {
     try {
         if (argc != 2) {
@@ -44,6 +48,7 @@ int main(int argc, char* argv[]) {
         boost::asio::io_context io_context;
         auto ssl_ctx = chat::SSLManager::create_boost_context(chat::SSLManager::SERVER, "server.crt", "server.key");
         chat::ChatServer server(io_context, ssl_ctx, std::atoi(argv[1]));
+// Start the event loop (this blocks).
         io_context.run();
 
     } catch (std::exception& e) {

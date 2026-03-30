@@ -1,3 +1,5 @@
+// Multi-Room Chat Client (FTXUI + Boost.Asio)
+// Logic: Main thread runs TUI, background thread runs async networking.
 #include <iostream>
 #include <thread>
 #include <deque>
@@ -34,6 +36,7 @@ void push(const std::string& s) {
     log_msgs.push_back(s);
 }
 
+// send_msg: Packages a MessageType and body into the binary protocol (Header+Body).
 void send_msg(boost::asio::ssl::stream<tcp::socket>& sock, boost::asio::io_context& ioc,
               std::deque<std::vector<uint8_t>>& q, MessageType t, const std::string& body) {
     boost::asio::post(ioc, [&sock, &q, t, body]() {
@@ -58,6 +61,7 @@ void send_msg(boost::asio::ssl::stream<tcp::socket>& sock, boost::asio::io_conte
     });
 }
 
+// send_file: Streams a local file to the server in 4KB chunks.
 void send_file(boost::asio::ssl::stream<tcp::socket>& sock, boost::asio::io_context& ioc,
                std::deque<std::vector<uint8_t>>& q, const std::string& path) {
     std::ifstream file(path, std::ios::binary);
@@ -110,6 +114,7 @@ int main(int argc, char* argv[]) {
     auto screen = ScreenInteractive::Fullscreen();
 
     // Update in chat_client.cpp (around line 113)
+// Protocol Loop: Step 1 - Read 5-byte header asynchronously.
     read_hdr = [&]() {
         boost::asio::async_read(sock, boost::asio::buffer(&rh, HEADER_SIZE),
             [&](boost::system::error_code ec, std::size_t) {
@@ -123,6 +128,7 @@ int main(int argc, char* argv[]) {
             });
     };
 
+// Protocol Loop: Step 2 - Read body bytes and dispatch to UI handlers.
     read_body = [&]() {
         rb.resize(rh.length);
         boost::asio::async_read(sock, boost::asio::buffer(rb.data(), rb.size()),
@@ -220,6 +226,7 @@ int main(int argc, char* argv[]) {
     };
 
     read_hdr();
+// Start the background thread to handle SSL communication.
     std::thread net([&]() { ioc.run(); });
 
     std::string username;
@@ -229,6 +236,7 @@ int main(int argc, char* argv[]) {
 
     std::string input_text;
 
+// TUI Component: Handles user text input and command parsing (/join, /create, etc).
     auto input = Input(&input_text, "Send message or use /cmd (see sidebar)...");
     input |= CatchEvent([&](Event e) {
         if (e != Event::Return || input_text.empty()) return false;

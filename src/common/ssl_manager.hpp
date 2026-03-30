@@ -1,3 +1,4 @@
+// ssl_manager.hpp: Abstraction for OpenSSL context and session creation.
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <boost/asio/ssl.hpp>
@@ -5,6 +6,7 @@
 #include <string>
 
 namespace chat {
+// SSLManager: Static and dynamic helpers to initialize TLS contexts for clients/servers.
 class SSLManager {
 public:
     enum Mode { SERVER, CLIENT };
@@ -23,6 +25,7 @@ public:
         }
     }
 
+// load_certificates: Attaches PEM certificate chains and private keys to the context.
     void load_certificates(const std::string& cert_path, const std::string& key_path) {
         if (SSL_CTX_use_certificate_file(ctx, cert_path.c_str(), SSL_FILETYPE_PEM) <= 0) {
             handle_error("Failed to load certificate");
@@ -45,6 +48,7 @@ public:
         }
     }
 
+// create_boost_context: Wraps OpenSSL for use with the Boost.Asio stream wrapper.
     static boost::asio::ssl::context create_boost_context(Mode mode,
                                                         const std::string& cert = "", 
                                                         const std::string& key = "") {

@@ -1,18 +1,22 @@
+// chat_room.cpp: Implementation of room-level and global server state.
 #include "chat_room.hpp"
 #include "chat_session.hpp"
 
 namespace chat {
 
+// join: Adds a session to the room and notifies others.
 void ChatRoom::join(std::shared_ptr<ChatSession> session) {
     participants_.insert(session);
     broadcast(MessageType::INFO_MSG, "[Server]: " + session->username() + " has joined the room " + name_);
 }
 
+// leave: Removes a session from the room and notifies others.
 void ChatRoom::leave(std::shared_ptr<ChatSession> session) {
     participants_.erase(session);
     broadcast(MessageType::INFO_MSG, "[Server]: " + session->username() + " has left the room " + name_);
 }
 
+// broadcast: Iterates through participants and calls deliver() on each.
 void ChatRoom::broadcast(MessageType type, const std::string& body, std::shared_ptr<ChatSession> exclude) {
     for (auto& participant : participants_) {
         if (participant != exclude && participant->current_room().get() == this) {
@@ -21,6 +25,7 @@ void ChatRoom::broadcast(MessageType type, const std::string& body, std::shared_
     }
 }
 
+// register_user: Stores a session in the global registry (username -> session).
 bool RoomManager::register_user(const std::string& username, std::shared_ptr<ChatSession> session) {
     if(users_.find(username) != users_.end()){
     	return false;
@@ -53,6 +58,7 @@ std::shared_ptr<ChatRoom> RoomManager::find_room(const std::string& room_name) {
     return nullptr;
 }
 
+// send_private: Finds a recipient by username and sends a direct message.
 void RoomManager::send_private(const std::string& sender, const std::string& recipient, const std::string& body) {
     auto it = users_.find(recipient);
     if (it != users_.end()) {
@@ -97,6 +103,7 @@ std::string RoomManager::get_all_users() const {
     return list;
 }
 
+// notify_room_list_change: Broadcaster for global room list updates.
 void RoomManager::notify_room_list_change() {
     std::string list = get_all_rooms();
     for (auto const& [name, session] : users_) {

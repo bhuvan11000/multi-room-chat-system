@@ -1,13 +1,16 @@
+// chat_session.cpp: Implementation of the session state machine and handlers.
 #include "chat_session.hpp"
 #include <iostream>
 
 namespace chat {
 
+// handle_message: Central switch logic for processing client commands.
 void ChatSession::handle_message() {
     std::string body(read_body_.begin(), read_body_.end());
     MessageType type = static_cast<MessageType>(read_header_.type);
 
     switch (type) {
+// Handle user login and ensure username uniqueness.
         case MessageType::LOGIN: {
      	    if(room_manager_.register_user(body, shared_from_this())){
 		    username_ = body;
@@ -50,6 +53,7 @@ void ChatSession::handle_message() {
             }
             break;
         }
+// Send a text message to all users in the current room.
         case MessageType::CHAT_MSG: {
             if (current_room_) {
                 std::string full_body = "[" + username_ + "]: " + body;
@@ -59,6 +63,7 @@ void ChatSession::handle_message() {
             }
             break;
         }
+// Logic for one-to-one communication by searching the user registry.
         case MessageType::PRIVATE_MSG: {
             size_t space_pos = body.find(' ');
             if (space_pos != std::string::npos) {
@@ -68,8 +73,11 @@ void ChatSession::handle_message() {
             }
             break;
         }
+// Forward binary file chunks across the SSL connection.
         case MessageType::FILE_START:
+// Forward binary file chunks across the SSL connection.
         case MessageType::FILE_DATA:
+// Forward binary file chunks across the SSL connection.
         case MessageType::FILE_END: {
             if (current_room_) {
                 current_room_ -> broadcast(type, body, shared_from_this());
@@ -88,6 +96,7 @@ void ChatSession::handle_message() {
             deliver(MessageType::LIST_USERS, room_manager_.get_all_users());
             break;
         }
+// Update which room messages are broadcast to.
         case MessageType::SWITCH_ROOM: {
             auto room = room_manager_.find_room(body);
             if (!room) {
@@ -149,6 +158,7 @@ void ChatSession::handle_message() {
     }
 }
 
+// handle_error: Cleanup when a client unexpectedly disconnects.
 void ChatSession::handle_error(const boost::system::error_code& ec) {
     if (!username_.empty()) {
         std::cout << "User disconnected: " << username_ << " (" << ec.message() << ")" << std::endl;

@@ -1,3 +1,4 @@
+// chat_session.hpp: Manages individual client connections and protocol handling.
 #ifndef CHAT_SESSION_HPP
 #ifndef CHAT_SESSION_HPP
 #define CHAT_SESSION_HPP
@@ -17,11 +18,13 @@ namespace chat {
 
 using boost::asio::ip::tcp;
 
+// ChatSession: Each instance handles one secure socket and state machine.
 class ChatSession : public std::enable_shared_from_this<ChatSession> {
 public:
     ChatSession(tcp::socket socket, boost::asio::ssl::context& context, RoomManager& room_manager)
         : ssl_socket_(std::move(socket), context), room_manager_(room_manager), current_room_(nullptr) {}
 
+// start: Begins the SSL handshake and message read loop.
     void start() {
         auto self(shared_from_this());
         ssl_socket_.async_handshake(boost::asio::ssl::stream_base::server, [this, self](const boost::system::error_code& ec) {
@@ -33,6 +36,7 @@ public:
         });
     }
 
+// deliver: Prepares a message and adds it to the write queue.
     void deliver(MessageType type, const std::string& body) {
         bool write_in_progress = !write_msgs_.empty();
         
@@ -56,6 +60,7 @@ public:
     std::shared_ptr<ChatRoom> current_room() const { return current_room_; }
 
 private:
+// do_read_header: Asynchronously reads the 5-byte header.
     void do_read_header() {
         auto self(shared_from_this());
         boost::asio::async_read(ssl_socket_,
@@ -69,6 +74,7 @@ private:
             });
     }
 
+// do_read_body: Resizes buffer based on header and reads the body.
     void do_read_body() {
         auto self(shared_from_this());
         read_body_.resize(read_header_.length);
@@ -84,6 +90,7 @@ private:
             });
     }
 
+// do_write: Asynchronously sends the front message from the queue.
     void do_write() {
         auto self(shared_from_this());
         boost::asio::async_write(ssl_socket_,

@@ -1,3 +1,4 @@
+// perf_test.cpp: Automated performance testing tool for the chat system.
 // perf_test.cpp — place at src/perf/perf_test.cpp
 // Usage: start chat_server manually first, then: ./perf_test <host> <port>
 
@@ -59,6 +60,7 @@ recv_one(boost::asio::ssl::stream<tcp::socket>& s) {
 // we don't care how many broadcast messages the server sent during setup,
 // we just wait until it goes quiet before starting measurements.
 
+// timed_drain: Clears server noise until the connection is quiet (avoids race conditions).
 static int timed_drain(boost::asio::ssl::stream<tcp::socket>& s,
                        boost::asio::io_context& ioc,
                        int quiet_ms = 80) {
@@ -110,6 +112,7 @@ static void separator() { std::cout << std::string(55, '-') << "\n"; }
 // NOTE: The server's RoomManager must be mutex-protected for this test to
 // be meaningful (concurrent map writes are UB without synchronisation).
 
+// ClientResult: Stores stats (msg/s, latency) for a specific test run.
 struct ClientResult {
     int    client_id   = 0;
     int    msgs_sent   = 0;
@@ -203,6 +206,7 @@ int main(int argc, char* argv[]) {
 
         separator();
 
+// Test 1: High-volume message rate (msg/s) measurement.
         // ── TEST 1: Throughput ────────────────────────────────────────────────
         std::cout << "[Test 1] Throughput: sending " << N_THROUGHPUT << " messages...\n";
 
@@ -220,6 +224,7 @@ int main(int argc, char* argv[]) {
 
         separator();
 
+// Test 2: Measures round-trip time (RTT) for a single ping-pong.
         // ── TEST 2: Round-trip latency ────────────────────────────────────────
         std::cout << "[Test 2] Latency: " << N_PINGS << " ping-pong round-trips...\n";
 
@@ -245,6 +250,7 @@ int main(int argc, char* argv[]) {
 
         separator();
 
+// Test 3: Scalability test spawning multiple independent client threads.
         // ── TEST 3: Concurrent clients ────────────────────────────────────────
         // Spawns N_CONCURRENT threads, each independently connecting and
         // sending N_CONCURRENT_MSGS messages. Measures per-client throughput
@@ -285,6 +291,7 @@ int main(int argc, char* argv[]) {
 
         separator();
 
+// Test 4: Measures bandwidth (MB/s) using large binary buffers.
         // ── TEST 4: Large payload throughput ─────────────────────────────────
         // Sends N_LARGE messages each carrying LARGE_PAYLOAD_SIZE bytes.
         // Stresses the serialisation / TLS record layer under high data volume

@@ -1,3 +1,4 @@
+// This file defines the binary protocol for the chat application.
 #ifndef PROTOCOL_HPP
 #define PROTOCOL_HPP
 
@@ -10,6 +11,7 @@
 namespace chat {
 
 // Message Types
+// MessageType: Defines the action type of the message body.
 enum class MessageType : uint8_t {
     LOGIN = 1,
     CREATE_ROOM = 2,
@@ -29,6 +31,7 @@ enum class MessageType : uint8_t {
 
 // Fixed Header: 1 byte for type, 4 bytes for body length
 #pragma pack(push, 1)
+// MessageHeader: Fixed 5-byte header used for message framing.
 struct MessageHeader {
     uint8_t type;
     uint32_t length;
@@ -36,6 +39,7 @@ struct MessageHeader {
 #pragma pack(pop)
 
 const size_t HEADER_SIZE = sizeof(MessageHeader);
+// Security limit: 10MB to prevent memory exhaustion.
 const size_t MAX_BODY_SIZE = 1024 * 1024 * 10; // 10MB limit for safety
 
 } // namespace chat
